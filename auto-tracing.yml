@@ -1,0 +1,24 @@
+inspectit:
+  tracing:
+    auto-tracing:
+      # The JVM-globale Frequency, which is used to collect traces.
+      # This means, it will only collect methods, if its runtime is equal or more than this time
+      frequency: 100ms
+  instrumentation:
+    # Extend existing (default) rules and activate auto-tracing there
+    rules:
+      'r_servletapi_tracing':
+        tracing:
+          auto-tracing: true
+      'r_jms_tracing_receive':
+        tracing:
+          auto-tracing: true
+          
+      # This is a way to include auto-tracing for one or more specific rules
+      # 'r_trace_my_method': # This is the name of the rule you whant extend with auto-trace
+      #   include:
+      #     'r_trace_method': true
+      #   scopes:
+      #     's_my_method': true # The method you have defined
+      #   tracing:
+      #     auto-tracing: true
