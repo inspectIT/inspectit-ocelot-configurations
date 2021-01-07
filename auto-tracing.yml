@@ -1,3 +1,5 @@
+# Documentation: https://inspectit.github.io/inspectit-ocelot/docs/instrumentation/rules#auto-tracing
+#
 inspectit:
   tracing:
     auto-tracing:
