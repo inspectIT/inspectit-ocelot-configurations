@@ -4,14 +4,14 @@ inspectit:
   instrumentation:
 
     scopes:
-      spring_qemi:
+      's_spring_qemi':
         type:
           name: org.springframework.data.repository.core.support.RepositoryFactorySupport$QueryExecutorMethodInterceptor
         methods:
           - name: invoke
 
     actions:
-      spring_qemi_method_name:
+      'a_spring_qemi_method_name':
         imports:
           - org.aopalliance.intercept
           - java.lang.reflect
@@ -21,7 +21,7 @@ inspectit:
           Method method = _arg0.getMethod();
           return method.getName();
 
-      spring_qemi_method_clazz:
+      'a_spring_qemi_method_clazz':
         imports:
           - org.aopalliance.intercept
           - java.lang.reflect
@@ -31,7 +31,7 @@ inspectit:
           Method method = _arg0.getMethod();
           return method.getDeclaringClass();
 
-      spring_qemi_nice_method_clazz:
+      'a_spring_qemi_nice_method_clazz':
         imports:
           - org.aopalliance.intercept
           - java.lang.reflect
@@ -42,9 +42,9 @@ inspectit:
           return method.getDeclaringClass().getSimpleName() + "." + method.getName();
 
     rules:
-      spring_data_tracing:
+      'r_spring_data_tracing':
         scopes:
-          spring_qemi: true
+          's_spring_qemi': true
         tracing:
           start-span: true
           name: nicename
@@ -53,8 +53,8 @@ inspectit:
             target_method: tmethod
         entry:
           tclass:
-            action: spring_qemi_method_clazz
+            action: 'a_spring_qemi_method_clazz'
           tmethod:
-            action: spring_qemi_method_name
+            action: 'a_spring_qemi_method_name'
           nicename:
-            action: spring_qemi_nice_method_clazz
+            action: 'a_spring_qemi_nice_method_clazz'
