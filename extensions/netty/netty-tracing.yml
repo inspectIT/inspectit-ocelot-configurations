@@ -1,0 +1,110 @@
+#################################################
+# REQUIRES netty-basics                         #
+#################################################
+
+
+inspectit:
+  instrumentation:
+  
+    actions:
+      'a_netty_get_http_span_of_channel':
+        imports:
+          - io.netty.channel
+          - io.netty.util
+        input: 
+          _this: ChannelHandlerContext
+        value: _this.attr(AttributeKey.valueOf("inspectit_http_span")).get()
+        
+      'a_netty_set_http_span_of_channel':
+        is-void: true
+        imports:
+          - io.netty.channel
+          - io.netty.util
+        input: 
+          _this: ChannelHandlerContext
+          span: Object
+        value: _this.attr(AttributeKey.valueOf("inspectit_http_span")).set(span)
+        
+      'a_netty_remove_http_span_of_channel':
+        is-void: true
+        imports:
+          - io.netty.channel
+          - io.netty.util
+        input: 
+          _this: ChannelHandlerContext
+        value: _this.attr(AttributeKey.valueOf("inspectit_http_span")).set(null)
+
+      'a_netty_get_request_name':
+        imports:
+          - io.netty.handler.codec.http
+        input: 
+          _arg0: Object # the received message
+        value-Body: |
+          if(_arg0 instanceof HttpRequest) {
+              HttpRequest req = ((HttpRequest)_arg0);
+              return req.method() + " " + new QueryStringDecoder(req.uri()).path();
+          }
+          return null;
+        
+    rules:
+      'r_netty_end_root_http_trace':
+        scopes:
+          's_netty_ChannelHandlerContext_write' : true
+        tracing:
+          start-span: false
+          continue-span: netty_http_span
+          continue-span-conditions:
+            only-if-true: netty_is_http_exit
+        entry:
+          'netty_http_span':
+            action: 'a_netty_get_http_span_of_channel'
+          'netty_finish_span':
+            action: 'a_netty_remove_http_span_of_channel'
+            only-if-true: netty_is_http_exit
+      
+      'r_netty_start_root_http_trace':
+        scopes:
+          's_netty_ChannelHandlerContext_fireChannelRead' : true
+        tracing:
+          kind: SERVER
+          start-span: true
+          start-span-conditions:
+            only-if-true: netty_is_http_entry
+          continue-span: netty_http_span
+          continue-span-conditions:
+            only-if-true: netty_span_open_marker
+          end-span: false
+          store-span: netty_http_span
+          name: span_name
+        entry:
+          'span_name':
+            action: 'a_netty_get_request_name'
+            only-if-true: netty_is_http_entry
+          'netty_span_open':
+            action: 'a_test_and_set_marker'
+            constant-input: { marker: netty_span_open_marker}
+          'netty_http_span':
+            action: 'a_netty_get_http_span_of_channel'
+            only-if-false: netty_is_http_entry
+        post-entry:
+          'write_netty_http_span':
+            action: 'a_netty_set_http_span_of_channel'
+            data-input:
+              span: 'netty_http_span'
+            only-if-true: netty_is_http_entry
+
+    data:
+      #local data specifying whether the current call marks the start or end of an http call
+      netty_is_http_entry: { down-propagation: NONE, is-tag: false }
+      netty_is_http_exit: { down-propagation: NONE, is-tag: false }
+      #local data storing the current netty-http span for the current channel
+      #this span is stored as channel attribute
+      netty_http_span: { down-propagation: NONE, is-tag: false }
+      #checks if the current http-span ahs already been started or continued
+      #this ensures that recursive fireChannelRead-calls do only reuse the http-span at the start
+      netty_span_open: { down-propagation: NONE, is-tag: false }
+      netty_span_open_marker: {is-tag: false }
+      
+      #markers to prevent doing up / down propagation multiple times
+      netty_down_prop_performed_marker: { is-tag: false }
+      netty_up_prop_performed_marker: { is-tag: false }      
