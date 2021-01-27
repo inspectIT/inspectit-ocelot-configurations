@@ -1,0 +1,66 @@
+# Excludes URLs, if the http path matches the defined regular expressions.
+# The sample_probability is set to 0, if a regular expression matches.
+
+exclude-urls: &url-ref
+  # --------------------- A List of regular expressions which URLs to exclude from tracing ------------------
+  - '.*\/favicon\.ico'
+  - '.*\.(js|css|gif|png|jpg)'
+  - '.*\.log'
+  - '.*\.ini'
+  - '.*\.(zip|z|gz|xz|tgz|7z|rar)'
+
+inspectit:
+  instrumentation:
+    actions:
+      # Checks if the given input string fully matches any of the provided regexes.
+      # If it does, the matched regex is returned. Otherwise, null is returned.
+      #
+      # The patterns are expected to be a list of the following form:
+      # constant-input:
+      #   patterns:
+      #    - <regexA>
+      #    - <regexB>
+      'a_regex_matchesAny':
+        imports:
+          - 'java.util'
+          - 'java.util.regex'
+        input:
+          'string': 'String'
+          'patterns': 'Map'
+        value-body: |
+          if (string == null) {
+            return null;
+          }
+          for (int i = 0; i < patterns.size(); i++) {
+            String pattern = (String) patterns.get(String.valueOf(i));
+            Pattern regex = Pattern.compile(pattern);
+            Matcher m = regex.matcher(string);
+            if (m.matches()) {
+              return pattern;
+            }
+          }
+          return null;
+
+    rules:
+      'r_servletapi_tracing':
+        include:
+          'r_http_tracing_excludes': true
+        tracing:
+          sample-probability: 'sample_probability'
+        entry:
+          'sample_probability':
+            only-if-not-null: 'http_tracing_exclude_match'
+            action: a_assign_value
+            constant-input:
+              'value': 0.0
+
+      'r_http_tracing_excludes':
+        entry:
+          'http_tracing_exclude_match':
+            only-if-null: 'http_tracing_exclude_match'
+            action: 'a_regex_matchesAny'
+            data-input:
+              'string': 'http_path'
+            constant-input:
+              'patterns': *url-ref
+
