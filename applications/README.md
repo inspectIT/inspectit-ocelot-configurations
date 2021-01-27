@@ -1,2 +1,2 @@
 ## applications
-This directory contains configurations, which are used for application monitoring.
+This directory contains bundles with configurations for specific applications

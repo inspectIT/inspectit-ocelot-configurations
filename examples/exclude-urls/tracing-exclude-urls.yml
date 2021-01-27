@@ -1,3 +1,6 @@
+# Excludes URLs, if the http path matches the defined regular expressions.
+# The sample_probability is set to 0, if a regular expression matches.
+
 exclude-urls: &url-ref
   # --------------------- A List of regular expressions which URLs to exclude from tracing ------------------
   - '.*\/favicon\.ico'
@@ -33,7 +36,6 @@ inspectit:
             Pattern regex = Pattern.compile(pattern);
             Matcher m = regex.matcher(string);
             if (m.matches()) {
-              System.out.println("Excluded pattern: " + pattern);
               return pattern;
             }
           }
