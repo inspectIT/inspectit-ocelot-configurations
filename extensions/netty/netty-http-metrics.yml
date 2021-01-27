@@ -1,0 +1,97 @@
+#################################################
+# REQUIRES netty-basics                         #
+#################################################
+
+inspectit:
+  instrumentation:
+
+    actions:
+      'a_netty_attach_timestamp_to_channel':
+        is-void: true
+        imports:
+          - io.netty.channel
+          - io.netty.util
+          - io.netty.handler.codec.http
+        input: 
+          _this: ChannelHandlerContext
+        value: _this.attr(AttributeKey.valueOf("inspectit_http_start_timestamp")).set(Long.valueOf(System.nanoTime()))
+        
+      'a_netty_get_elapsed_time_since_timestamp_of_channel':
+        imports:
+          - io.netty.channel
+          - io.netty.util
+          - io.netty.handler.codec.http
+        input: 
+          _this: ChannelHandlerContext
+        value-body: |
+          Long timestamp = ((Long)_this.attr(AttributeKey.valueOf("inspectit_http_start_timestamp")).get());
+          if(timestamp != null) {
+            return Double.valueOf((System.nanoTime() - timestamp.longValue()) / 1000000.0);
+          } else {
+            return null;
+          }
+
+      'a_netty_get_request_path':
+        imports:
+          - io.netty.handler.codec.http
+        input: 
+          request: HttpRequest
+        value-body: |
+          return new QueryStringDecoder(request.uri()).path();
+          
+      'a_netty_get_request_method':
+        imports:
+          - io.netty.handler.codec.http
+        input: 
+          request: HttpRequest
+        value: request.method().toString()
+        
+      'a_netty_get_response_status':
+        imports:
+          - io.netty.handler.codec.http
+        input: 
+          response: HttpResponse
+        value: String.valueOf(response.getStatus().code())
+      
+    
+    rules:    
+    
+    #################### REQUEST START STUFF ######################################
+
+      'r_netty_request_start':
+        scopes:
+          's_netty_ChannelHandlerContext_fireChannelRead' : true
+        entry:
+          'remember_time':
+            only-if-true: netty_is_http_entry
+            action: 'a_netty_attach_timestamp_to_channel'
+
+      'r_netty_request_finished':
+        scopes:
+          's_netty_ChannelHandlerContext_write' : true
+        tracing:
+          attributes:
+            http_duration: http_duration
+            http_path: http_path
+            http_method: http_method
+            http_status: http_status
+        entry:
+          'http_raw_path':
+            only-if-true: netty_is_http_exit
+            action: 'a_netty_get_request_path'
+            data-input: {request: netty_request }
+          'http_method':
+            only-if-true: netty_is_http_exit
+            action: 'a_netty_get_request_method'
+            data-input: {request: netty_request }
+        exit:
+          'http_status':
+            only-if-true: netty_is_http_exit
+            action: 'a_netty_get_response_status'
+            data-input: {response: netty_response }
+          'http_path': { action: 'a_getOrElse', data-input: {value: parametrized_http_path, elseValue: http_raw_path} }
+          'http_duration':
+            only-if-true: netty_is_http_exit
+            action: 'a_netty_get_elapsed_time_since_timestamp_of_channel'
+        metrics:
+          '[http/in/responsetime]': http_duration
