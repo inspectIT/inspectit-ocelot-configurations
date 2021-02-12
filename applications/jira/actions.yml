@@ -1,0 +1,147 @@
+inspectit:
+  instrumentation:
+     actions:
+      'a_status_title':
+        input:
+          'issue': 'com.atlassian.jira.issue.Issue'
+        value-body: |
+          if(issue.getStatus() != null){
+            return issue.getStatus().getSimpleStatus().getName().replace(" ", "_").replace("'", "_");
+          }
+          return "null";
+      
+      'a_issue_id':
+        input:
+          'issue': 'com.atlassian.jira.issue.Issue'
+        value: 'issue.toString().replace("-","_")'
+      
+      'a_project_name':
+        input:
+          'issue': 'com.atlassian.jira.issue.Issue'
+        value: 'issue.getProjectObject().getName()'
+          
+      'a_issue_type':
+        input:
+          'issue': 'com.atlassian.jira.issue.Issue'
+        value: 'issue.getIssueType().getName()'
+        
+      'a_status_from_validation_result':
+        input:
+          'result': 'com.atlassian.jira.bc.issue.IssueService.CreateValidationResult'
+        value: 'result.getIssue().getStatus().getSimpleStatus().getName().replace(" ", "_")'
+        
+      'a_id_from_validation_result':
+        input:
+          'result': 'com.atlassian.jira.bc.issue.IssueService.CreateValidationResult'
+        value: 'result.getIssue().toString().replace("-","_")'
+        
+      'a_type_from_validation_result':
+        input:
+          'result': 'com.atlassian.jira.bc.issue.IssueService.CreateValidationResult'
+        value: 'result.getIssue().getIssueType().getName()'
+        
+      'a_project_name_from_validation_result':
+        input:
+          'result': 'com.atlassian.jira.bc.issue.IssueService.CreateValidationResult'
+        value: 'result.getIssue().getProjectObject().getName()'
+        
+      'a_get_created_identifier':
+        value: 'new String("Created")'
+        
+      'a_set_ignore':
+        input:
+          _context: 'InspectitContext'
+        value-body: |
+          if (_context.getData("ignore") != Boolean.TRUE) {
+            _context.setData("ignore", Boolean.TRUE);
+            return String.valueOf(Boolean.FALSE);
+          } else {
+            return String.valueOf(Boolean.TRUE);
+          }
+      
+      'a_set_creation_call':
+        input:
+          _context: 'InspectitContext'
+        value-body: |
+          _context.setData("creation_call", Boolean.TRUE);
+          return Boolean.TRUE;
+            
+      'a_get_channel':
+        input:
+            'result': 'com.atlassian.jira.bc.issue.IssueService.CreateValidationResult'
+        imports: 
+            - 'java.util.Map'
+            - 'java.util.List'
+            - 'java.lang.StringBuilder'
+            - 'com.atlassian.jira.bc.project.component.ProjectComponentImpl'
+            - 'com.atlassian.jira.issue.IssueImpl'
+            - 'com.atlassian.jira.issue.fields.CustomField'
+            - 'com.atlassian.jira.issue.customfields.view.CustomFieldParamsImpl'
+        value-body: |
+            StringBuilder builder = new StringBuilder();
+            List components = (List)((IssueImpl) result.getIssue()).getComponentObjects();
+            if (components.size() > 0) {
+              return ((ProjectComponentImpl)components.get(0)).getName();
+            }
+            return new String("undefined");
+            
+      'a_get_customfield_value': 
+        input:
+            'fieldKey' : 'java.lang.String'
+            'result'   : 'com.atlassian.jira.bc.issue.IssueService.CreateValidationResult'
+        imports:
+            - 'com.atlassian.jira.issue.customfields.view.CustomFieldParamsImpl'
+            - 'java.util.Map'
+            - 'com.atlassian.jira.issue.fields.CustomField'
+        value-body: |
+            Map fieldValuesHolder = (Map)result.getFieldValuesHolder();
+            if(fieldValuesHolder != null) {
+              CustomFieldParamsImpl fieldParams = (CustomFieldParamsImpl) fieldValuesHolder.get(fieldKey);
+              if(fieldParams != null) {
+                 CustomField field = fieldParams.getCustomField();
+                 if(field != null) {
+                  Object value = field.getValue(result.getIssue());
+                  if(value != null) {
+                    return value.toString().replace(" ", "_").replace("[", "").replace("]", "").replace("ü", "ue");
+                  }
+                }
+              }
+            }
+            return new String("undefined");
+            
+      'a_get_changed_field':
+        input: 
+          'map': 'java.util.Map'
+          'issue': 'com.atlassian.jira.issue.Issue'
+          'fieldKey' : 'java.lang.String'
+        imports:
+          - 'com.atlassian.jira.issue.customfields.view.CustomFieldParamsImpl'
+        value-body: |
+          CustomFieldParamsImpl field = (CustomFieldParamsImpl) map.get(fieldKey);
+          if(field != null) {
+            Object values = field.getValuesForNullKey();
+            if(values != null) {
+              return values.toString().replace("[", "").replace("]", "");
+            }
+          }
+          return "undefined";
+        
+      'a_get_field':
+        input: 
+          'map': 'java.util.Map'
+          'issue': 'com.atlassian.jira.issue.Issue'
+          'fieldKey': 'java.lang.String'
+        imports:
+          - 'com.atlassian.jira.issue.customfields.view.CustomFieldParamsImpl'
+        value-body: |
+          CustomFieldParamsImpl field = (CustomFieldParamsImpl) map.get(fieldKey);
+          if(field != null) {
+            Object value = field.getCustomField().getValue(issue);
+            if(value != null) {
+              return value.toString();
+            }
+          }
+          return "undefined";
+        
+      'a_edit_title':
+        value: 'new String("edit")'
