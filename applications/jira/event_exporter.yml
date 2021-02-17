@@ -1,0 +1,10 @@
+inspectit:
+  plugins:
+    logstash-event-export:
+      enabled: true
+      host: MY_HOST_IP
+      port: 8010
+      
+  events:
+    enabled: true
+    frequency: 100

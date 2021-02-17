@@ -1,0 +1,242 @@
+inspectit:
+  instrumentation:
+  
+    data:
+        'ignore': 
+          down-propagation: "JVM_LOCAL"
+          
+        'creation_call': 
+          down-propagation: "JVM_LOCAL"
+     
+    
+    rules:
+          
+      #################################################################   
+      # Rule to retrieve Events when an Issue is added.    
+      'r_add_issue':
+          scopes:
+            's_add_issue' : true
+            
+          include:
+            'r_trace_method': true
+            
+          entry:
+            'project_name':
+              action: 'a_project_name_from_validation_result'
+              data-input:
+                  'result': _arg1
+                  
+            'set_ignore':
+              action: 'a_set_ignore'
+            
+            'set_is_creation_call':
+              action: 'a_set_creation_call'
+                
+          exit:
+            'status_title':
+              action: 'a_status_from_validation_result'
+              data-input:
+                'result': _arg1
+                
+            'issue_id':
+              action: 'a_id_from_validation_result'
+              data-input:
+                 'result': _arg1
+                 
+            'issue_type':
+              action: 'a_type_from_validation_result'
+              data-input:
+                  'result': _arg1
+                  
+            'event_identifier':
+              action: 'a_get_created_identifier'
+              
+            'channel':
+              action: 'a_get_channel'
+              data-input:
+                'result': _arg1
+                
+            'location':
+                action: 'a_get_customfield_value'
+                data-input:
+                  'result': _arg1
+                constant-input:
+                  'fieldKey': 'customfield_13615'
+                
+            'practice':
+              action: 'a_get_customfield_value'
+              data-input:
+                'result': _arg1
+              constant-input:  
+                'fieldKey': 'customfield_12506'
+            
+            'job_offer':
+              action: 'a_get_customfield_value'
+              data-input:
+                'result': _arg1
+              constant-input:
+                'fieldKey': 'customfield_13909'   
+              
+                
+          events:
+            'created':
+              attributes:
+                'event-id'               : 'event_identifier'
+                'status-title'           : 'status_title' 
+                'issue_id'               : 'issue_id'
+                'issue_type'             : 'issue_type'
+                'project_name'           : 'project_name'
+                'ignore'                 : 'set_ignore'
+                'source_event-id'        : 'custom_field_value'
+                'channel'                : 'channel'
+                'location'               : 'location' 
+                'practice'               : 'practice'
+                'job_offer'              : 'job_offer'
+          
+          
+      #################################################################    
+      # Rule to retrieve Events when the status of an issue is changed.   
+      'r_set_status':
+        scopes:
+          's_set_status'  : true
+        include:
+          'r_trace_method': true
+          
+        exit:
+          'status_title':
+            action: 'a_status_title'
+            data-input:
+              'issue': _this
+              
+          'issue_id':
+            action: 'a_issue_id'
+            data-input:
+               'issue': _this
+               
+          'issue_type':
+            action: 'a_issue_type'
+            data-input:
+                'issue': _this
+                
+          'project_name':
+            action: 'a_project_name'
+            data-input:
+                'issue': _this
+              
+          'created':
+            action: 'a_get_created_identifier'
+            only-if-true: 'creation_call'
+            
+        events:
+          'change_status':
+            attributes:
+              'event-id'               : 'status_title'
+              'status-title'           : 'status_title' 
+              'issue_id'               : 'issue_id'
+              'issue_type'             : 'issue_type'
+              'project_name'           : 'project_name'
+              'source_event-id'        : 'created'
+      
+           
+              
+      #################################################################    
+      # Rule to retrieve Events when an issue is edited.   
+      'r_edit_issue':
+        scopes:
+          's_edit_issue'  : true
+          
+        include:
+          'r_trace_method': true
+          
+        exit:
+          'status_title':
+            action: 'a_status_title'
+            data-input:
+              'issue': _arg0
+              
+          'issue_id':
+            action: 'a_issue_id'
+            data-input:
+               'issue': _arg0
+               
+          'issue_type':
+            action: 'a_issue_type'
+            data-input:
+                'issue': _arg0
+                
+          'project_name':
+            action: 'a_project_name'
+            data-input:
+                'issue': _arg0
+              
+          'created':
+            action: 'a_get_created_identifier'
+            only-if-true: 'creation_call'
+              
+          'location':
+            action: 'a_get_changed_field'
+            data-input:
+                'map'  : _arg2
+                'issue': _arg0
+            constant-input:
+                'fieldId': 'customfield_13615' 
+                
+          'oldLocation':
+            action: 'a_get_field'
+            data-input:
+                'map'  : _arg2
+                'issue': _arg0
+            constant-input:
+                'fieldKey': 'customfield_13615' 
+                
+          'practice':
+            action: 'a_get_changed_field'
+            data-input:
+                'map'  : _arg2
+                'issue': _arg0
+            constant-input:
+                'fieldKey': 'customfield_12506' 
+                
+          'oldPractice':
+            action: 'a_get_field'
+            data-input:
+                'map'  : _arg2
+                'issue': _arg0
+            constant-input:    
+                'fieldKey': 'customfield_12506' 
+                
+          'joboffer':
+            action: 'a_get_changed_field'
+            data-input:
+                'map'  : _arg2
+                'issue': _arg0
+            constant-input:
+                'fieldKey': 'customfield_13909' 
+                
+          'oldJoboffer':
+            action: 'a_get_field'
+            data-input:
+                'map'  : _arg2
+                'issue': _arg0
+            constant-input:
+                'fieldKey': 'customfield_13909' 
+              
+          'title':
+            action: 'a_edit_title'
+          
+                
+        events:
+          'edit':
+            attributes:
+              'event-id'               : 'title'
+              'status-title'           : 'title' 
+              'issue_id'               : 'issue_id'
+              'issue_type'             : 'issue_type'
+              'project_name'           : 'project_name'
+              'source_event-id'        : 'created'
+              'old_practice'           : 'oldPractice'
+              'practice'               : 'practice'
+              'location'               : 'location'
+              'old_location'           : 'oldLocation'
+              'job_offer'              : 'joboffer'
+              'old_job_offer'          : 'oldJoboffer'

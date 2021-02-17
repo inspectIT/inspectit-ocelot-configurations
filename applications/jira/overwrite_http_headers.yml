@@ -1,0 +1,151 @@
+###################################################################################
+# Overwriting actions in connection to http-headers since the default headers cause
+# trouble with the application-link between jira and confluence.
+inspectit:   
+    actions:
+      'a_apacheclient_downPropagation':
+        is-void: true
+        imports:
+          - 'java.util'
+          - 'org.apache.http'
+        input:
+          _arg1: 'HttpMessage'
+          _context: 'InspectitContext'
+        value-body: |
+          Map headers = _context.getDownPropagationHeaders();
+          Iterator it = headers.entrySet().iterator();
+          while (it.hasNext()) {
+            Map$Entry e = (Map$Entry) it.next();
+            _arg1.setHeader("inspectit_" + (String) e.getKey(), (String) e.getValue());
+          }
+          
+          
+      'a_apacheclient_upPropagation':
+        is-void: true
+        imports:
+          - 'java.util'
+          - 'org.apache.http'
+        input:
+          _returnValue: 'HttpMessage'
+          _context: 'InspectitContext'
+        value-body: |
+          if (_returnValue != null) {
+            Collection headerKeys = _context.getPropagationHeaderNames();
+            Map presentHeaders = new HashMap();
+            Iterator it = headerKeys.iterator();
+            while (it.hasNext()) {
+              String name = (String) it.next();
+              Header[] headers = _returnValue.getHeaders("inspectit_" + name);
+              if (headers != null && headers.length > 0) {
+                StringBuilder sb = new StringBuilder();
+                for (int i = 0; i < headers.length; i++) {
+                  String value = headers[i].getValue();
+                  if (value != null) {
+                    if (sb.length() > 0) {
+                      sb.append(',');
+                    }
+                    sb.append(value);
+                  }
+                }
+                presentHeaders.put(name, sb.toString());
+              }
+            }
+            _context.readUpPropagationHeaders(presentHeaders);
+          }
+          
+      'a_servletapi_upPropagation':
+          is-void: true
+          imports:
+            - 'java.util'
+            - 'javax.servlet'
+            - 'javax.servlet.http'
+          input:
+            'response': 'ServletResponse'
+            _context: 'InspectitContext'
+          value-body: |
+            if (response instanceof HttpServletResponse) {
+              HttpServletResponse res = (HttpServletResponse) response;
+              if (!res.isCommitted()) {
+                Map headers = _context.getUpPropagationHeaders();
+                Iterator it = headers.entrySet().iterator();
+                while (it.hasNext()) {
+                  Map$Entry e = (Map$Entry) it.next();
+                  res.setHeader("inspectit_" + (String) e.getKey(), (String) e.getValue());
+                }
+              }
+            }
+            
+      'a_servletapi_downPropagation':
+        is-void: true
+        imports:
+          - 'java.util'
+          - 'javax.servlet'
+          - 'javax.servlet.http'
+        input:
+          _arg0: 'ServletRequest'
+          _context: 'InspectitContext'
+        value-body: |
+          if (_arg0 instanceof HttpServletRequest) {
+            HttpServletRequest req = (HttpServletRequest) _arg0;
+            Collection headerKeys = _context.getPropagationHeaderNames();
+            Map presentHeaders = new HashMap();
+            Iterator it = headerKeys.iterator();
+            while (it.hasNext()) {
+              String name = (String) it.next();
+              java.util.Enumeration values = req.getHeaders("inspectit_" +name);
+              if (values != null && values.hasMoreElements()) {
+                presentHeaders.put(name, String.join(",", Collections.list(values)));
+              }
+            }
+            _context.readDownPropagationHeaders(presentHeaders);
+          }
+            
+      'a_httpurlconnection_downPropagation':
+        is-void: true
+        imports:
+          - 'java.util'
+          - 'java.net'
+        input:
+          _this: 'HttpURLConnection'
+          _attachments: 'ObjectAttachments'
+          _context: 'InspectitContext'
+        value-body: |
+          Object propagationAlreadyPerformed = _attachments.attach(_this, "down_prop_performed", Boolean.TRUE);
+          if (propagationAlreadyPerformed == null) {
+            try {
+              Map headers = _context.getDownPropagationHeaders();
+              Iterator it = headers.entrySet().iterator();
+              while (it.hasNext()) {
+                Map$Entry e = (Map$Entry) it.next();
+                _this.setRequestProperty("inspectit_" + (String) e.getKey(), (String) e.getValue());
+              }
+            } catch (Exception e) {
+              // silently ignore, this will occur if the url has already been connected
+              // normally does not happen, as we also instrument connect()
+              // it can still happen if connect() is instrumented last
+            }
+          }
+          
+      'a_httpurlconnection_upPropagation':
+        is-void: true
+        imports:
+          - 'java.util'
+          - 'java.net'
+        input:
+          _this: 'HttpURLConnection'
+          _attachments: 'ObjectAttachments'
+          _context: 'InspectitContext'
+        value-body: |
+          Object propagationAlreadyPerformed = _attachments.attach(_this, "up_prop_performed", Boolean.TRUE);
+          if (propagationAlreadyPerformed == null) {
+            Collection headerKeys = _context.getPropagationHeaderNames();
+            Map presentHeaders = new HashMap();
+            Iterator it = headerKeys.iterator();
+            while (it.hasNext()) {
+              String name = (String) it.next();
+              List values = _this.getHeaderFields().get("inspectit_" + name);
+              if (values != null) {
+                presentHeaders.put(name, String.join(",", values));
+              }
+            }
+          }
