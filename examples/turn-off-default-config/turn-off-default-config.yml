@@ -1,0 +1,131 @@
+###################################################################################
+# This config turns off the default config of inspectit.
+
+inspectit:
+
+  instrumentation:
+  
+    special:
+      thread-start-context-propagation: false
+      executor-context-propagation: false
+      scheduled-executor-context-propagation: false
+      class-loader-delegation: false
+      
+    rules:  
+      r_jdbc_tracing_statement_execute:
+        scopes:
+          's_jdbc_statement_execute': false
+          
+      r_jdbc_tracing_statement_executeBatch:
+        scopes:
+          's_jdbc_statement_executeBatch': false
+  
+      r_jdbc_servicegraph_record:
+        scopes:
+              's_jdbc_preparedstatement_execute': false
+              's_jdbc_preparedstatement_executeBatch': false
+              's_jdbc_statement_execute': false
+              's_jdbc_statement_executeBatch': false
+
+      r_jdbc_tracing_preparedstatement:
+        scopes:
+              's_jdbc_preparedstatement_execute': false
+              's_jdbc_preparedstatement_executeBatch': false
+              
+      r_apacheclient_http_metric:
+        scopes:
+          's_apacheclient_doExecute': false
+          
+      r_apacheclient_propagation:
+        scopes:
+          's_apacheclient_doExecute': false
+          
+      r_apacheclient_servicegraph_propagation:
+        scopes:
+          's_apacheclient_doExecute': false
+          
+      r_apacheclient_servicegraph_record:
+        scopes:
+          's_apacheclient_doExecute': false
+          
+      r_apacheclient_tracing:
+        scopes:
+          's_apacheclient_doExecute': false
+          
+      r_httpurlconnection_http_metric:
+        scopes:
+          's_httpurlconnection_getInputStream': false
+          's_httpurlconnection_requestInitiators': false
+          
+      r_httpurlconnection_down_propagation:
+        scopes:
+          's_httpurlconnection_connect': false
+          's_httpurlconnection_getOutputStream': false
+          's_httpurlconnection_getInputStream': false
+          
+      r_httpurlconnection_up_propagation:
+        scopes:
+          's_httpurlconnection_getInputStream': false
+          
+      r_httpurlconnection_servicegraph_propagation:
+        scopes:
+          's_httpurlconnection_connect': false
+          's_httpurlconnection_getOutputStream': false
+          's_httpurlconnection_getInputStream': false
+          
+      r_httpurlconnection_servicegraph_record:
+        scopes:
+          's_httpurlconnection_getInputStream': false
+          's_httpurlconnection_requestInitiators': false
+          
+      r_httpurlconnection_tracing_start:
+        scopes:
+          's_httpurlconnection_connect': false
+          's_httpurlconnection_getOutputStream': false
+          
+      r_httpurlconnection_tracing_end:
+        scopes:
+          's_httpurlconnection_getInputStream': false
+          's_httpurlconnection_requestInitiators': false
+          
+      r_servletapi_servletresponse_upPropagation:
+        scopes:
+          's_servletapi_servletresponse_getWriter': false
+          's_servletapi_servletresponse_getOutputStream': false
+          
+      r_jdbc_prepared_sql_stop_propagation:
+        scopes:
+                's_jdbc_preparedstatement_execute': false
+                's_jdbc_preparedstatement_executeBatch': false
+                
+      r_servletapi_http_metric:
+        scopes:
+              's_servletapi_servlet_service': false
+              's_servletapi_filter_doFilter': false
+      
+      r_servletapi_downPropagation:
+        scopes:
+              's_servletapi_servlet_service': false
+              's_servletapi_filter_doFilter': false
+
+      r_servletapi_servlet_filter_upPropagation:
+        scopes:
+              's_servletapi_servlet_service': false
+              's_servletapi_filter_doFilter': false
+              
+      r_servletapi_servicegraph_propagation:
+        scopes:
+              's_servletapi_servlet_service': false
+              's_servletapi_filter_doFilter': false
+              's_servletapi_servletresponse_getWriter': false
+              's_servletapi_servletresponse_getOutputStream': false
+      
+      r_servletapi_servicegraph_record:
+        scopes:
+                's_servletapi_servlet_service': false
+                's_servletapi_filter_doFilter': false
+      
+      r_servletapi_tracing:
+        scopes:
+                's_servletapi_servlet_service': false
+                's_servletapi_filter_doFilter': false
