@@ -1,0 +1,39 @@
+inspectit:
+  instrumentation:
+    scopes:
+      's_http_client_send_methods':
+        type:
+          name: 'java.net.http.HttpClient'
+        methods:
+          - name: 'send'
+          - name: 'sendAsync'
+          
+      's_http_client_send_async_methods':
+        superclass:
+          name: 'java.net.http.HttpClient'
+        methods:
+          - name: 'sendAsync'
+      
+      's_http_response_statusCode':
+        interfaces:
+          - name: "java.net.http.HttpResponse"
+        methods:
+          - name: "statusCode"
+      
+      's_http_response_header':
+        interfaces:
+          - name: "java.net.http.HttpResponse"
+        methods:
+          - name: "headers"
+      
+      's_http_request_builder':
+        superclass:
+          name: "java.net.http.HttpRequest"
+        methods: 
+          - name: "newBuilder"
+          
+      's_http_response_body_handler':
+        superclass:
+          name: "java.net.http.HttpResponse$BodySubscriber" 
+        methods:
+          - name: 'apply'

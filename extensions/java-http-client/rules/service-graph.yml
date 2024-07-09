@@ -1,0 +1,46 @@
+inspectit:
+  instrumentation:
+    rules:
+
+      'r_java_client_servicegraph_propagation':
+        docs:
+          since: '1.2.1'
+          description: 'Prepares the context to contain the service graph correlation information (e.g. origin_service and target_service).'
+        default-rule: true
+        include:
+          'r_servicegraph_prepare_down_propagation': true
+        scopes:
+          's_http_client_send_methods': true
+
+      'r_java_client_servicegraph_record':
+        docs:
+          since: '1.2.1'
+          description: 'Records HTTP calls done via the Apache HTTP Client in the [service/out/responsetime] metric for the service graph.'
+        default-rule: true
+        include:
+          'r_servicegraph_outbound_record_method': true
+          'r_java_http_client_detect_entry': true
+          'r_java_http_client_extract_details': true
+        scopes:
+          's_http_client_send_methods': true
+        entry:
+          'servicegraph_is_entry':
+            action: 'a_entrypoint_check'
+            constant-input: 
+              'marker': 'servicegraph_outbound_marker'
+            only-if-true: 'http_is_entry'
+          'servicegraph_protocol':
+            action: 'a_assign_value'
+            constant-input: 
+              'value': 'http'
+        exit:
+          'servicegraph_target_external':
+            only-if-null: 'servicegraph_target_service'
+            action: 'a_assign_value'
+            data-input: 
+              'value': 'http_target_host'
+          'servicegraph_is_error':
+            action: 'a_assign_value'
+            data-input:
+              'value': 'http_is_error'
+      

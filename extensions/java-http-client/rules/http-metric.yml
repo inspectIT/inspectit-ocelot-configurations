@@ -1,0 +1,14 @@
+inspectit:
+  instrumentation:
+    rules:
+
+      'r_java_client_http_metric':
+        docs:
+          since: '2.6.4'
+          description: 'Records the http/out metrics for calls done via the Java HTTP Client.'
+        default-rule: true
+        include:
+          'r_java_http_client_extract_details': true
+          'r_http_client_record_metric_on_method': true
+        scopes:
+          's_http_client_send_methods': true

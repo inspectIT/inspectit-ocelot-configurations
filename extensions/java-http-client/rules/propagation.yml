@@ -1,0 +1,22 @@
+inspectit:
+  instrumentation:
+    rules:
+      'r_http_request_down_propagation':
+        scopes:
+          's_http_request_builder': true
+        include:
+          'r_java_http_client_detect_entry': true # to make sure propagation happens only once
+        exit:
+          'do_write_headers':
+            action: 'a_httpRequest_addContextHeaders'
+            only-if-true: 'http_is_entry'
+      
+      'r_http_response_up_propagation':
+        scopes:
+          's_http_response_header': true
+        include:
+          'r_java_http_client_detect_entry': true # to make sure propagation happens only once
+        exit:
+          'do_read_headers':
+            action: 'a_httpResponse_readContextHeaders'
+            only-if-true: 'http_is_entry'
