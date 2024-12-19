@@ -1,0 +1,26 @@
+inspectit:
+  metrics:
+    definitions:
+      '[http/in/responsetime]':
+        unit: ms
+        views:
+          '[http/in/responsetime]':
+            aggregation: QUANTILES
+            quantiles: [0, 1]
+            tags: 
+              'http_path': true
+              'http_status': true
+              'http_method': true
+              'error': true
+      '[http/out/responsetime]':
+        unit: ms
+        views:
+          '[http/out/responsetime]':
+            aggregation: QUANTILES
+            quantiles: [0, 1]
+            tags:
+              'http_host': true
+              'http_path': true
+              'http_status': true
+              'http_method': true
+              'error': true
