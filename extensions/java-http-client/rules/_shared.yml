@@ -1,0 +1,52 @@
+inspectit:
+  instrumentation:
+    rules:
+      'r_java_http_client_detect_entry':
+        docs:
+          since: '1.2.1'
+          description: 'Can be included to detect and exclude nested Java HTTP Client calls.'
+        default-rule: true
+        pre-entry:
+          'http_is_entry':
+            action: 'a_entrypoint_check'
+            constant-input: 
+              'marker': 'http_java_client_entrypoint_marker' # propagation is defined in the shared http settings
+
+      'r_java_http_client_extract_details':
+        docs:
+          since: '1.2.1'
+          description: |-
+            Reads all HTTP related data from Apache Client calls, e.g. http_raw_path, http_path, http_method, etc. 
+            Designed to be applied on the scope s_apacheclient_doExecute.
+        default-rule: true
+        include:
+          'r_java_http_client_detect_entry': true
+          'r_http_parametrize_path': true # derives http_path form http_raw_path
+        entry:
+          'http_raw_uri':
+            only-if-true: 'http_is_entry'
+            action: 'a_httpClient_getURI'
+          'http_method':
+            only-if-true: 'http_is_entry'
+            action: 'a_httpClient_getMethod'
+          'http_target_host':
+            only-if-true: 'http_is_entry'
+            action: 'a_httpClient_getTargetHost'
+            
+      'r_java_http_response_extract_status':
+        docs: 
+          since: '2.6.4',
+          description: "Extracts the HTTP Status COde from an HTTP Response, when it´s called."
+        default-rule: true
+        include:
+          'r_java_http_client_detect_entry': true
+        exit:
+          'http_status':
+            only-if-true: 'http_is_entry'
+            action: 'a_httpResponse_getStatus'
+          'http_is_error':
+            only-if-true: 'http_is_entry'
+            action: 'a_http_isErrorStatus'
+            data-input:
+              'status': 'http_status'
+          

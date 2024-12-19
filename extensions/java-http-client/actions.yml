@@ -1,0 +1,193 @@
+inspectit:
+  instrumentation:
+    actions:
+      'a_httpClient_getURI':
+        docs:
+          since: '2.6.4'
+          description: |
+            "Extracts the targets URI. 
+            Is designed to be applied on java.net.http.HttpClient´s send-Methods."
+          return-value: "The target URI as a String."
+        imports:
+          - 'java.net.http.HttpRequest'
+          - 'java.net.URI'
+        input:
+          _arg0: 'HttpRequest'
+        value-body: |
+          URI targetUri = _arg0.uri();
+          String uriString = targetUri.toString();
+          return uriString;
+          
+      'a_httpClient_getTargetHost':
+        docs:
+          since: '2.6.4'
+          description: |
+            "Extracts the targets Host and Port as a String in Format [Host]:[Port]."
+          return-value: "The TargetHost as a String."
+        imports:
+          - 'java.net.http.HttpRequest'
+          - 'java.net.URI'
+        input:
+          _arg0: 'HttpRequest'
+        value-body: |
+          URI targetUri = _arg0.uri();
+          String host = targetUri.getHost();
+          int port = targetUri.getPort();
+          // Check if the port is not specified, -1 indicates that the port is not set
+          if (port == -1) {
+            port = targetUri.toURL().getDefaultPort();
+          }
+          // javassist doesn´tlike string.format()...
+          return host + ":" + port;
+      
+      'a_httpClient_getMethod':
+        docs: 
+          since: '2.6.4'
+          description: | 
+            "Extracts the HTTP method of an Http-Request, e.g. GET or POST.
+            Is designed to be applied on java.net.http.HttpClient´s send()-Methods."
+          return-value: "The HTTP method as a String."
+        imports:
+          - "java.net.http.HttpRequest"
+        input:
+          _arg0: 'HttpRequest'
+        value-body: |
+          String method = _arg0.method();
+          return method;
+          
+      'a_body_handler_get_responseInfo': 
+        input:
+          _arg0: "java.net.http.HttpResponse.ResponseInfo"
+        value-body: |
+          System.out.println("Hello World");
+          return null;
+          
+      
+      ##UNSED--------------
+      'a_httpResponse_getStatus':
+        docs:
+          since: '2.6.4'
+          description: |
+            Extracts the response status code as a string. if the request returned without an exception.
+            Does NOT return the exception. This should be applied to java.net.http.HttpResponse.statusCode().
+          return-value: "The response status code as a String."
+        imports:
+        input:
+          _returnValue: 'int'
+        value-body: |
+          return String.valueOf(_returnValue);
+      ## ------------------------
+      
+      ## Propagation ##
+      'a_httpRequest_addContextHeaders':
+        docs:
+          since: '2.6.4'
+          description: |
+            Adds the inspectIT Context to the Request-Headers, when building a new HttpRequest.
+        is-void: true
+        imports: 'java.util'
+        input:
+          _context: 'InspectitContext'
+          _returnValue: 'java.net.http.HttpRequest.Builder'
+        value-body: |
+          Map headers = _context.getDownPropagationHeaders();
+          Iterator it = headers.entrySet().iterator();
+          while (it.hasNext()) {
+            Map$Entry e = (Map$Entry) it.next();
+            _returnValue.header((String) e.getKey(), (String) e.getValue());
+          }
+          
+      'a_httpResponse_readContextHeaders':
+        docs:
+          since: '2.6.4'
+          description: |
+            Reads the inspectIT Context from the Response-Header, when calling the HttpResponse Headers.
+                  is-void: true
+        is-void: true
+        imports:
+          - 'java.util'
+          - 'java.net.http.HttpHeaders'
+        input:
+          _returnValue: 'HttpHeaders'
+          _context: 'InspectitContext'
+        value-body: |
+          if (_returnValue != null) {
+            HttpHeaders responseHeaders = (HttpHeaders) _returnValue; 
+            // All availbale, e.g. context-headers X-B3- or traceparent ...
+            Collection headerKeys = _context.getPropagationHeaderNames();
+            Map presentHeaders = new HashMap();
+            // Iterate through all available context-headers
+            Iterator it = headerKeys.iterator();
+            while (it.hasNext()) {
+              String name = (String) it.next();
+              List headerValues = responseHeaders.allValues(name);
+              if (headerValues != null && headerValues.size() > 0) {
+                String commaSeparatedHeaderValues = String.join(", ", headerValues);
+                // System.out.println("Headers: " + commaSeparatedHeaderValues);
+                presentHeaders.put(name, commaSeparatedHeaderValues);
+              }
+            }
+            _context.readUpPropagationHeaders(presentHeaders);
+          }
+          
+      'a_httpClient_addContextHeaders':
+        docs:
+          since: '2.6.4'
+          description: |
+             Adds the inspectIT Context Headers, when executing the send()-Methods.
+             This Action is error-prone!
+        is-void: true
+        input:
+          _arg0: 'java.net.http.HttpRequest'
+        imports:
+          - 'java.util'
+          - 'java.time'
+          - 'java.util.Optional'
+          - 'java.net.http'
+        value-body: |
+          HttpRequest originalRequest = (HttpRequest) _arg0;
+          
+          java.net.http.HttpRequest.Builder builder = HttpRequest.newBuilder();
+          builder.uri(originalRequest.uri());
+          Optional publisherOptional = originalRequest.bodyPublisher();
+          java.net.http.HttpRequest.BodyPublisher publisher;
+          
+          if(publisherOptional.isPresent()) {
+            publisher = publisherOptional.get();
+          }
+          else {
+            publisher = java.net.http.HttpRequest.BodyPublishers.noBody();
+          }
+          
+          builder.method(originalRequest.method(), publisher);
+
+          // Copy headers
+          HttpHeaders headers = originalRequest.headers();
+          Map headersMap = (Map) headers.map();
+          Iterator it = headersMap.entrySet().iterator();
+          while (it.hasNext()) {
+            Map$Entry entry = it.next();
+            System.out.println(entry.getKey() + ":" + entry.getValue());
+            String commaSeparatedHeaderValues = String.join(", ", (List) entry.getValue());
+            builder.header((String) entry.getKey(), commaSeparatedHeaderValues);
+          }
+
+          // Copy timeout if present
+          Optional timeoutOptional = originalRequest.timeout();
+  
+          if(timeoutOptional.isPresent()){
+            builder.timeout( (Duration) timeoutOptional.get());
+          }
+
+          // Copy version if present
+          Optional versionOptional = originalRequest.version();
+          
+          if(versionOptional.isPresent()) {
+            builder.version( (HttpClient$Version) versionOptional.get());
+          }
+
+          // Add custom headers
+          builder.header("TEST-KEY", "TEST-VALUE");
+
+          _arg0 = builder.build();
+          
