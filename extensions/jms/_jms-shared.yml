@@ -1,0 +1,205 @@
+inspectit:
+  instrumentation:
+
+    actions:
+      'a_jms_getDestination':
+        imports:
+          - 'javax.jms'
+        input:
+          _arg0: Object
+          _this: Object
+        value-body: |
+          Destination dest = null;
+          if(_arg0 instanceof Destination) {
+            dest = (Destination) _arg0;
+          }
+          if(_this instanceof MessageProducer && dest == null){
+            dest = ((MessageProducer)_this).getDestination();
+          }
+          if(_arg0 instanceof Message && dest == null) {
+            dest = ((Message) _arg0).getJMSDestination();
+          }
+          if(dest instanceof Queue) {
+            return ((Queue)dest).getQueueName();
+          }
+          if(dest instanceof Topic) {
+            return ((Topic)dest).getTopicName();
+          }
+          return null;
+
+      'a_jms_write_down_propagation':
+        is-void: true
+        imports:
+          - java.util
+          - javax.jms
+        input:
+          msgIndex: int
+          _args: Object[]
+          _attachments: ObjectAttachments
+          _context: InspectitContext
+        value-body: |
+          Message msg = (Message)_args[msgIndex];
+          Object propagationAlreadyPerformed = _attachments.attach(msg, "down_prop_performed", Boolean.TRUE);
+          if(propagationAlreadyPerformed == null) {
+            Map headers = _context.getDownPropagationHeaders();
+            Iterator it = headers.entrySet().iterator();
+            while(it.hasNext()) {
+              Map$Entry e = (Map$Entry) it.next();
+              //we remove hyphens as they are not allowed as property names by the JMS spec
+              msg.setStringProperty( ((String) e.getKey()).replaceAll("-",""), (String) e.getValue());
+            }
+          }
+
+      'a_jms_read_down_propagation':
+        is-void: true
+        imports:
+          - 'java.util'
+          - 'javax.jms'
+        input:
+          msgIndex: int
+          _args: Object[]
+          _attachments: ObjectAttachments
+          _context: InspectitContext
+        value-body: |
+          Message msg = (Message)_args[msgIndex];
+          Object propagationAlreadyPerformed = _attachments.attach(msg, "down_prop_read", Boolean.TRUE);
+          if(propagationAlreadyPerformed == null) {
+            Collection headerKeys = _context.getPropagationHeaderNames();
+            Map presentHeaders = new HashMap();
+            Iterator it = headerKeys.iterator();
+            while(it.hasNext()) {
+              String name = (String) it.next();
+              String nameWithoutHyphens = name.replaceAll("-","");
+              String value = msg.getStringProperty(nameWithoutHyphens);
+              if (value != null) {
+                presentHeaders.put(name, value);
+              }
+            }
+            _context.readDownPropagationHeaders(presentHeaders);
+          }
+
+    scopes:
+      's_jms_MessageListener_onMessage':
+        interfaces:
+          - name: 'javax.jms.MessageListener'
+        methods:
+          - name: 'onMessage'
+        advanced:
+          instrument-only-inherited-methods: true
+
+      's_jms_SessionAwareMessageListener_onMessage':
+        interfaces:
+          - name: 'org.springframework.jms.listener.SessionAwareMessageListener'
+        methods:
+          - name: 'onMessage'
+        advanced:
+          instrument-only-inherited-methods: true
+
+      's_jms_MessageProducer_send_arg0msg':
+        interfaces:
+          - name: 'javax.jms.MessageProducer'
+        methods:
+          - name: 'send'
+            arguments: [ 'javax.jms.Message' ]
+          - name: 'send'
+            arguments: [ 'javax.jms.Message', 'javax.jms.CompletionListener' ]
+          - name: 'send'
+            arguments: [ 'javax.jms.Message', int, int, long ]
+          - name: 'send'
+            arguments: [ 'javax.jms.Message',int, int, long, 'javax.jms.CompletionListener' ]
+
+      's_jms_MessageProducer_send_arg1msg':
+        interfaces:
+          - name: 'javax.jms.MessageProducer'
+        methods:
+          - name: 'send'
+            arguments: [ 'javax.jms.Destination', 'javax.jms.Message' ]
+          - name: 'send'
+            arguments: [ 'javax.jms.Destination', 'javax.jms.Message', 'javax.jms.CompletionListener' ]
+          - name: 'send'
+            arguments: [ 'javax.jms.Destination', 'javax.jms.Message', int, int, long ]
+          - name: 'send'
+            arguments: [ 'javax.jms.Destination', 'javax.jms.Message',int, int, long, 'javax.jms.CompletionListener' ]
+
+      's_jms_QueueSender_send_arg0msg':
+        interfaces:
+          - name: 'javax.jms.QueueSender'
+        methods:
+          - name: 'send'
+            arguments: [ 'javax.jms.Message' ]
+          - name: 'send'
+            arguments: [ 'javax.jms.Message', int, int, long ]
+
+      's_jms_QueueSender_send_arg1msg':
+        interfaces:
+          - name: 'javax.jms.QueueSender'
+        methods:
+          - name: 'send'
+            arguments: [ 'javax.jms.Queue', 'javax.jms.Message' ]
+          - name: 'send'
+            arguments: [ 'javax.jms.Queue', 'javax.jms.Message', int, int, long ]
+
+      's_jms_TopicPublisher_publish_arg0msg':
+        interfaces:
+          - name: 'javax.jms.TopicPublisher'
+        methods:
+          - name: 'publish'
+            arguments: [ 'javax.jms.Message' ]
+          - name: 'publish'
+            arguments: [ 'javax.jms.Message', int, int, long ]
+
+      s_jms_TopicPublisher_publish_arg1msg:
+        interfaces:
+          - name: 'javax.jms.TopicPublisher'
+        methods:
+          - name: 'publish'
+            arguments: [ 'javax.jms.Topic', 'javax.jms.Message' ]
+          - name: 'publish'
+            arguments: [ 'javax.jms.Topic', 'javax.jms.Message', int, int, long ]
+
+    data:
+      'jms_send_marker':
+        down-propagation: JVM_LOCAL
+      'jms_receive_marker':
+        down-propagation: JVM_LOCAL
+
+    rules:
+      'r_jms_send_detect_entry':
+        entry:
+          'jms_is_entry':
+            action: 'a_entrypoint_check'
+            constant-input:
+              'marker': 'jms_send_marker'
+
+      'r_jms_receive_detect_entry':
+        entry:
+          'jms_is_entry':
+            action: 'a_entrypoint_check'
+            constant-input:
+              'marker': 'jms_receive_marker'
+
+      'r_jms_send_extract_details':
+        include:
+          'r_jms_send_detect_entry': true
+        entry:
+          'jms_destination':
+            only-if-true: 'jms_is_entry'
+            action: 'a_jms_getDestination'
+          'jms_is_error':
+            only-if-true: 'jms_is_entry'
+            action: 'a_logic_isNotNull'
+            data-input:
+              'value': _thrown
+
+      'r_jms_receive_extract_details':
+        include:
+          'r_jms_receive_detect_entry': true
+        entry:
+          'jms_origin':
+            only-if-true: 'jms_is_entry'
+            action: 'a_jms_getDestination'
+          'jms_is_error':
+            only-if-true: 'jms_is_entry'
+            action: 'a_logic_isNotNull'
+            data-input:
+              'value': _thrown
