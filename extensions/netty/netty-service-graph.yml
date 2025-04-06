@@ -1,0 +1,66 @@
+#################################################
+# REQUIRES netty-http-metrics & netty-basics    #
+#################################################
+
+inspectit:
+  instrumentation:
+
+    actions:
+      'a_netty_attach_to_channel':
+        is-void: true
+        imports:
+          - io.netty.channel
+          - io.netty.util
+          - io.netty.handler.codec.http
+        input: 
+          _this: ChannelHandlerContext
+          key: String
+          value: Object
+        value: _this.attr(AttributeKey.valueOf(key)).set(value)
+        
+      'a_netty_get_attachachment_from_channel':
+        imports:
+          - io.netty.channel
+          - io.netty.util
+          - io.netty.handler.codec.http
+        input: 
+          _this: ChannelHandlerContext
+          key: String
+        value: _this.attr(AttributeKey.valueOf(key)).get()
+
+    rules:
+      #Let callers know who we are...
+      'r_netty_up_propagation':
+        entry:
+          'prop_target_service':
+            action: 'a_assign_value'
+            data-input: {value: service}
+            
+    
+      #Remember who called us when receiving a request
+      'r_netty_request_start':
+        scopes:
+          's_netty_ChannelHandlerContext_fireChannelRead' : true
+        entry:
+          'remember_origin':
+            only-if-true: netty_is_http_entry
+            action: 'a_netty_attach_to_channel'
+            constant-input: { key: "inspectit_origin_service"}
+            data-input: { value: prop_origin_service}
+            
+            
+      #And finally write the metric when the last bit of the response has been sent
+      'r_netty_request_finished':
+        tracing: 
+          attributes:
+            origin_service: origin_service
+        exit:
+          'protocol':
+            action: 'a_assign_value'
+            constant-input: {value: "http"}
+          'origin_service':
+            only-if-true: netty_is_http_exit
+            action: 'a_netty_get_attachachment_from_channel'
+            constant-input: { key: "inspectit_origin_service"}
+        metrics:
+          '[service/in/responsetime]': http_duration
