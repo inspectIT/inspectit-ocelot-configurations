@@ -1,0 +1,210 @@
+inspectit:
+  instrumentation:
+
+    scopes:
+      's_netty_ChannelHandlerContext_fireChannelRead':
+        interfaces:
+          - name: io.netty.channel.ChannelHandlerContext
+        methods:
+          - name: fireChannelRead
+        advanced:
+          instrument-only-inherited-methods: true
+
+      's_netty_ChannelHandlerContext_write':
+        interfaces:
+          - name: io.netty.channel.ChannelHandlerContext
+          - name: io.netty.channel.ChannelOutboundInvoker
+        methods:
+          - name: write
+          - name: writeAndFlush
+      advanced:
+        instrument-only-inherited-methods: true
+
+    actions:
+      'a_netty_is_message_LastHttpContent':
+        imports:
+          - io.netty.handler.codec.http
+        input:
+          _arg0: Object # the message
+        value: "Boolean.valueOf(_arg0 instanceof LastHttpContent)"
+        
+      'a_netty_is_message_HttpResponse':
+        imports:
+          - io.netty.handler.codec.http
+        input:
+          _arg0: Object # the message
+        value: "Boolean.valueOf(_arg0 instanceof HttpResponse)"
+        
+      'a_netty_attach_msg_to_channel':
+        is-void: true
+        imports:
+          - io.netty.channel
+          - io.netty.util
+          - io.netty.handler.codec.http
+        input: 
+          _this: ChannelHandlerContext
+          _arg0: Object # the message object
+          key: String # the key to use
+        value: _this.attr(AttributeKey.valueOf(key)).set(_arg0)
+        
+      'a_netty_get_and_remove_msg_from_channel':
+        imports:
+          - io.netty.channel
+          - io.netty.util
+          - io.netty.handler.codec.http
+        input: 
+          _this: ChannelHandlerContext
+          key: String # the key to use
+        value: _this.attr(AttributeKey.valueOf(key)).getAndSet(null)
+      
+      'a_netty_read_down_propagation':
+        imports:
+          - io.netty.channel
+          - io.netty.util
+          - io.netty.handler.codec.http
+          - java.util
+        input: 
+          _this: ChannelHandlerContext
+          _context: InspectitContext
+          _arg0: Object # the received message
+        value-Body: |
+          if(_arg0 instanceof HttpRequest) {
+            if(_context.getData("netty_down_prop_performed_marker") == null) {
+              _context.setData("netty_down_prop_performed_marker", Boolean.TRUE);
+              Collection headerKeys = _context.getPropagationHeaderNames();
+              HttpHeaders headers = ((HttpRequest)_arg0).headers();
+              Map presentHeaders = new HashMap();
+              Iterator it = headerKeys.iterator();
+              while(it.hasNext()) {
+                String name = (String) it.next();
+                String value = headers.get(name);
+                if (value != null) {
+                    presentHeaders.put(name, value);
+                }
+              }
+              _context.readDownPropagationHeaders(presentHeaders); 
+              return Boolean.TRUE;
+            }
+          }
+          return Boolean.FALSE;
+          
+      'a_netty_write_up_propagation':
+        is-void: true
+        imports:
+          - io.netty.channel
+          - io.netty.util
+          - io.netty.handler.codec.http
+          - java.util
+        input:
+          _this: ChannelHandlerContext
+          _context: InspectitContext
+          _arg0: Object # the sent message
+        value-body: |
+          if(_arg0 instanceof HttpResponse) {
+            if(_context.getData("netty_up_prop_performed_marker") == null) {
+              _context.setData("netty_up_prop_performed_marker", Boolean.TRUE);
+              HttpResponse res = (HttpResponse) _arg0;
+              Map headers = _context.getUpPropagationHeaders();
+              Iterator it = headers.entrySet().iterator();
+              while(it.hasNext()) {
+                Map$Entry e = (Map$Entry) it.next();
+                res.headers().set((String) e.getKey(), (String) e.getValue());
+              }
+            }
+          }
+    
+    rules:
+
+    #################### REQUEST START STUFF ######################################
+    
+      'r_netty_down_propagation':
+        scopes:
+          's_netty_ChannelHandlerContext_fireChannelRead' : true
+        pre-entry:
+          netty_is_http_entry:
+            action: 'a_netty_read_down_propagation'
+      
+      'r_netty_remember_request':
+        scopes:
+          's_netty_ChannelHandlerContext_fireChannelRead' : true
+        entry:
+          netty_request:
+            only-if-true: netty_is_http_entry
+            action: 'a_netty_attach_msg_to_channel'
+            constant-input: {key: "inspectit_netty_req"}
+      
+    #################### REQUEST END STUFF #######################################
+    
+      'r_netty_up_propagation':
+        scopes:
+          's_netty_ChannelHandlerContext_write' : true
+        post-entry:
+          write_up_prop:
+            action: 'a_netty_write_up_propagation'
+     
+    
+      'r_netty_request_end_detection':
+        scopes:
+          's_netty_ChannelHandlerContext_write' : true
+        entry:
+          netty_is_lasthttpcontent_written:
+            action: 'a_netty_is_message_LastHttpContent'
+          netty_is_http_exit:
+            action: 'a_test_and_set_marker'
+            constant-input: { marker: netty_is_http_exit_marker}
+            only-if-true: netty_is_lasthttpcontent_written
+      
+      'r_netty_remember_response':
+        scopes:
+          's_netty_ChannelHandlerContext_write' : true
+        entry:
+          netty_is_httpresponse_written:
+            action: 'a_netty_is_message_HttpResponse'
+          netty_remember_response:
+            only-if-true: netty_is_httpresponse_written
+            action: 'a_netty_attach_msg_to_channel'
+            constant-input: {key: "inspectit_netty_resp"}
+      
+      'r_netty_extract_response_and_request_on_end':
+        scopes:
+          's_netty_ChannelHandlerContext_write' : true
+        tracing:
+          attributes:
+            req: netty_request
+            res: netty_response
+          
+        entry:
+          netty_request:
+            only-if-true: netty_is_http_exit
+            action: 'a_netty_get_and_remove_msg_from_channel'
+            constant-input: {key: "inspectit_netty_req"}
+          netty_response:
+            only-if-true: netty_is_http_exit
+            action: 'a_netty_get_and_remove_msg_from_channel'
+            constant-input: {key: "inspectit_netty_resp"}
+            
+        
+          
+    data:
+      #local true/false markers, which indicate whether the written Message is a Response or LastContent Message
+      netty_is_lasthttpcontent_written : { down-propagation: NONE, is-tag: false }
+      netty_is_httpresponse_written : { down-propagation: NONE, is-tag: false }
+    
+      #local data specifying whether the current call marks the start or end of an http call
+      netty_is_http_entry: { down-propagation: NONE, is-tag: false }
+      netty_is_http_exit: { down-propagation: NONE, is-tag: false }
+      netty_is_http_exit_marker: { is-tag: false }
+      #local data storing the current netty-http span for the current channel
+      #this span is stored as channel attribute
+      netty_http_span: { down-propagation: NONE, is-tag: false }
+      #we remember the netty_request and netty_response objects as channel attributes
+      netty_request: { down-propagation: NONE, is-tag: false }
+      netty_response: { down-propagation: NONE, is-tag: false }
+      #checks if the current http-span ahs already been started or continued
+      #this ensures that recursive fireChannelRead-calls do only reuse the http-span at the start
+      netty_span_open: { down-propagation: NONE, is-tag: false }
+      netty_span_open_marker: {is-tag: false }
+      
+      #markers to prevent doing up / down propagation multiple times
+      netty_down_prop_performed_marker: { is-tag: false }
+      netty_up_prop_performed_marker: { is-tag: false }      
