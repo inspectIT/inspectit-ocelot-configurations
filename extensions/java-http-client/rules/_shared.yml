@@ -23,7 +23,7 @@ inspectit:
           'r_java_http_client_detect_entry': true
           'r_http_parametrize_path': true # derives http_path form http_raw_path
         entry:
-          'http_raw_uri':
+          'http_raw_path':
             only-if-true: 'http_is_entry'
             action: 'a_httpClient_getURI'
           'http_method':
