@@ -1,0 +1,184 @@
+# This configuration will overwrite actions and scopes of the default instrumentation to enable
+# tracing and metrics for the jakarta JMS API
+inspectit:
+  instrumentation:
+    scopes:
+      's_jms_MessageListener_onMessage':
+        docs:
+          since: '2.7.0'
+          description: "Targets the 'onMessage' method for any class inheriting from jakarta.jms.MessageListener'"
+        interfaces:
+          - name: 'jakarta.jms.MessageListener'
+        methods:
+          - name: 'onMessage'
+        advanced:
+          instrument-only-inherited-methods: true
+
+      's_jms_MessageProducer_send_arg0msg':
+        docs:
+          since: '2.7.0'
+          description: "Targets 'send' methods with the message as first argument for any class inheriting from jakarta.jms.MessageProducer"
+        interfaces:
+          - name: 'jakarta.jms.MessageProducer'
+        methods:
+          - name: 'send'
+            arguments: [ 'jakarta.jms.Message' ]
+          - name: 'send'
+            arguments: [ 'jakarta.jms.Message', 'jakarta.jms.CompletionListener' ]
+          - name: 'send'
+            arguments: [ 'jakarta.jms.Message', int, int, long ]
+          - name: 'send'
+            arguments: [ 'jakarta.jms.Message',int, int, long, 'jakarta.jms.CompletionListener' ]
+
+      's_jms_MessageProducer_send_arg1msg':
+        docs:
+          since: '2.7.0'
+          description: "Targets 'send' methods with the message as second argument for any class inheriting from jakarta.jms.MessageProducer"
+        interfaces:
+          - name: 'jakarta.jms.MessageProducer'
+        methods:
+          - name: 'send'
+            arguments: [ 'jakarta.jms.Destination', 'jakarta.jms.Message' ]
+          - name: 'send'
+            arguments: [ 'jakarta.jms.Destination', 'jakarta.jms.Message', 'jakarta.jms.CompletionListener' ]
+          - name: 'send'
+            arguments: [ 'jakarta.jms.Destination', 'jakarta.jms.Message', int, int, long ]
+          - name: 'send'
+            arguments: [ 'jakarta.jms.Destination', 'jakarta.jms.Message',int, int, long, 'jakarta.jms.CompletionListener' ]
+
+
+      's_jms_QueueSender_send_arg0msg':
+        docs:
+          since: '2.7.0'
+          description: "Targets 'send' methods with the message as first argument for any class inheriting from jakarta.jms.QueueSender"
+        interfaces:
+          - name: 'jakarta.jms.QueueSender'
+        methods:
+          - name: 'send'
+            arguments: [ 'jakarta.jms.Message' ]
+          - name: 'send'
+            arguments: [ 'jakarta.jms.Message', int, int, long ]
+
+      's_jms_QueueSender_send_arg1msg':
+        docs:
+          since: '2.7.0'
+          description: "Targets 'send' methods with the message as second argument for any class inheriting from jakarta.jms.QueueSender"
+        interfaces:
+          - name: 'jakarta.jms.QueueSender'
+        methods:
+          - name: 'send'
+            arguments: [ 'jakarta.jms.Queue', 'jakarta.jms.Message' ]
+          - name: 'send'
+            arguments: [ 'jakarta.jms.Queue', 'jakarta.jms.Message', int, int, long ]
+
+
+      's_jms_TopicPublisher_publish_arg0msg':
+        docs:
+          since: '2.7.0'
+          description: "Targets 'send' methods with the message as first argument for any class inheriting from jakarta.jms.TopicPublisher"
+        interfaces:
+          - name: 'jakarta.jms.TopicPublisher'
+        methods:
+          - name: 'publish'
+            arguments: [ 'jakarta.jms.Message' ]
+          - name: 'publish'
+            arguments: [ 'jakarta.jms.Message', int, int, long ]
+
+      s_jms_TopicPublisher_publish_arg1msg:
+        docs:
+          since: '2.7.0'
+          description: "Targets 'send' methods with the message as second argument for any class inheriting from jakarta.jms.TopicPublisher"
+        interfaces:
+          - name: 'jakarta.jms.TopicPublisher'
+        methods:
+          - name: 'publish'
+            arguments: [ 'jakarta.jms.Topic', 'jakarta.jms.Message' ]
+          - name: 'publish'
+            arguments: [ 'jakarta.jms.Topic', 'jakarta.jms.Message', int, int, long ]
+
+    actions:
+      'a_jms_getDestination':
+        docs:
+          since: '2.7.0'
+          description: 'Extracts the destination of the message.'
+          return-value: 'The destination name as a String or null.'
+        imports:
+          - 'jakarta.jms'
+        input:
+          _arg0: Object
+          _this: Object
+        value-body: |
+          Destination dest = null;
+          if(_arg0 instanceof Destination) {
+            dest = (Destination) _arg0;
+          } 
+          if(_this instanceof MessageProducer && dest == null){
+            dest = ((MessageProducer)_this).getDestination();          
+          } 
+          if(_arg0 instanceof Message && dest == null) {
+            dest = ((Message) _arg0).getJMSDestination();
+          }
+          if(dest instanceof Queue) {
+            return ((Queue)dest).getQueueName();
+          }
+          if(dest instanceof Topic) {
+            return ((Topic)dest).getTopicName();
+          }
+          return null;
+
+      'a_jms_write_down_propagation':
+        docs:
+          since: '2.7.0'
+          description: 'Writes down-propagated context data to the message.'
+        is-void: true
+        imports:
+          - 'java.util'
+          - 'jakarta.jms'
+        input:
+          msgIndex: int
+          _args: Object[]
+          _attachments: ObjectAttachments
+          _context: InspectitContext
+        value-body: |
+          Message msg = (Message)_args[msgIndex];
+          Object propagationAlreadyPerformed = _attachments.attach(msg, "down_prop_performed", Boolean.TRUE);
+          if(propagationAlreadyPerformed == null) {
+            Map headers = _context.getDownPropagationHeaders();
+            Iterator it = headers.entrySet().iterator();
+            while(it.hasNext()) {
+              Map$Entry e = (Map$Entry) it.next();
+              //we remove hyphens as they are not allowed as property names by the JMS spec
+              msg.setStringProperty( ((String) e.getKey()).replaceAll("-",""), (String) e.getValue());
+            }
+          }
+
+      'a_jms_read_down_propagation':
+        docs:
+          since: '2.7.0'
+          description: 'Reads down-propagated context data from the message.'
+        is-void: true
+        imports:
+          - 'java.util'
+          - 'jakarta.jms'
+        input:
+          msgIndex: int
+          _args: Object[]
+          _attachments: ObjectAttachments
+          _context: InspectitContext
+        value-body: |
+          Message msg = (Message)_args[msgIndex];
+          Object propagationAlreadyPerformed = _attachments.attach(msg, "down_prop_read", Boolean.TRUE);
+          if(propagationAlreadyPerformed == null) {
+            Collection headerKeys = _context.getPropagationHeaderNames();
+            Map presentHeaders = new HashMap();
+            Iterator it = headerKeys.iterator();
+            while(it.hasNext()) {
+              String name = (String) it.next();
+              String nameWithoutHyphens = name.replaceAll("-","");
+              String value = msg.getStringProperty(nameWithoutHyphens);
+              if (value != null) {
+                presentHeaders.put(name, value);
+              }
+            }
+            _context.readDownPropagationHeaders(presentHeaders);
+          }
